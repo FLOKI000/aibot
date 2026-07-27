@@ -1,0 +1,94 @@
+/*
+Command: *
+Description: Handle text messages - including admin content adding via GitHub API
+*/
+
+// Skip callback queries (handled elsewhere)
+if (update.callback_query) return;
+if (!message) return;
+
+const adminId = Bot.get("admin_id");
+const GITHUB_TOKEN = Bot.get("github_token");
+const GITHUB_REPO = "FLOKI000/aibot";
+const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/contents/content`;
+
+// Check if admin is in an action
+const adminAction = User.get("admin_action");
+
+if (adminId && user.id === parseInt(adminId) && adminAction) {
+  
+  const contentMap = {
+    "add_joke": "jokes.json",
+    "add_meme": "memes.json",
+    "add_dialogue": "dialogues.json"
+  };
+  
+  const filename = contentMap[adminAction];
+  if (!filename) return;
+
+  Bot.sendMessage("⏳ در حال ذخیره...");
+
+  // 1. Fetch current file from GitHub (need SHA for update)
+  const fileResp = await HTTP.get({
+    url: `${GITHUB_API}/${filename}`,
+    headers: {
+      "Authorization": `token ${GITHUB_TOKEN}`,
+      "Accept": "application/vnd.github.v3+json"
+    }
+  });
+
+  if (!fileResp.ok) {
+    Bot.sendMessage("❌ خطا در دریافت فایل از GitHub!");
+    return;
+  }
+
+  const fileSha = fileResp.data.sha;
+  const existingContent = JSON.parse(Buffer.from(fileResp.data.content, 'base64').toString('utf8'));
+
+  // 2. Create new entry
+  const newId = existingContent.length > 0 ? Math.max(...existingContent.map(i => i.id)) + 1 : 1;
+  const newEntry = {
+    id: newId,
+    text: message
+  };
+  
+  if (adminAction === "add_meme") {
+    newEntry.emoji = "😂";
+  }
+
+  existingContent.push(newEntry);
+
+  // 3. Push back to GitHub
+  const updatedContent = Buffer.from(JSON.stringify(existingContent, null, 2)).toString('base64');
+
+  const pushResp = await HTTP.call({
+    method: "PUT",
+    url: `${GITHUB_API}/${filename}`,
+    headers: {
+      "Authorization": `token ${GITHUB_TOKEN}`,
+      "Accept": "application/vnd.github.v3+json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message: `Add new ${adminAction.replace('add_', '')} #${newId} via bot`,
+      content: updatedContent,
+      sha: fileSha
+    })
+  });
+
+  User.del("admin_action");
+
+  if (pushResp.ok && (pushResp.status === 200 || pushResp.status === 201)) {
+    Bot.sendMessage(`✅ <b>محتوا ذخیره شد!</b>\n\nID: ${newId}\nفایل: ${filename}\n\n📝 ${message.substring(0, 100)}...`, {
+      parse_mode: "HTML"
+    });
+  } else {
+    Bot.sendMessage(`❌ خطا در ذخیره‌سازی!\n\nStatus: ${pushResp.status}`);
+  }
+  return;
+}
+
+// Default: unknown command
+if (message.startsWith("/")) {
+  Bot.sendMessage("❓ دستور ناشناخته! از /start شروع کن.");
+}

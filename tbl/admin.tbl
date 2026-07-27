@@ -1,0 +1,30 @@
+/*
+Command: /admin
+Description: Admin panel - only for authorized admin
+*/
+
+const adminId = Bot.get("admin_id");
+
+if (!adminId || user.id !== parseInt(adminId)) {
+  Bot.sendMessage("⛔ دسترسی مجاز نیست!");
+  return;
+}
+
+Bot.sendMessage("🔐 <b>پنل ادمین</b>\n\nچی می‌خوای انجام بدی؟", {
+  parse_mode: "HTML",
+  reply_markup: {
+    inline_keyboard: [
+      [
+        { text: "➕ افزودن جوک", callback_data: "admin_add_joke" },
+        { text: "➕ افزودن میم", callback_data: "admin_add_meme" }
+      ],
+      [
+        { text: "➕ افزودن دیالوگ", callback_data: "admin_add_dialogue" },
+        { text: "📊 آمار", callback_data: "admin_stats" }
+      ],
+      [
+        { text: "📝 لیست محتوا", callback_data: "admin_list_joke" }
+      ]
+    ]
+  }
+});

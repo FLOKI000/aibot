@@ -1,0 +1,19 @@
+/*
+Command: !
+Description: Global error handler
+*/
+
+Bot.sendMessage(
+  "⚠️ یه خطا پیش اومد!\n\nدوباره تلاش کن یا /start رو بزن.",
+  { parse_mode: "HTML" }
+);
+
+// Log error for admin
+const adminId = Bot.get("admin_id");
+if (adminId) {
+  Api.sendMessage({
+    chat_id: adminId,
+    text: `🔴 <b>خطا در ربات:</b>\n\n<code>${error ? JSON.stringify(error) : "Unknown error"}</code>`,
+    parse_mode: "HTML"
+  });
+}

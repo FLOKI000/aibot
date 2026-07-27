@@ -1,0 +1,37 @@
+/*
+Command: /start
+Description: Welcome message with glass buttons
+*/
+
+const adminId = Bot.get("admin_id") || 0;
+
+const welcomeText = `✨ سلام ${user.first_name} عزیز! به ربات سرگرمی خوش اومدی 🎉
+
+🎭 اینجا می‌تونی:
+🤣 جوک بخونی
+🖼️ میم ببینی  
+🕵️ شخصیت حدس بزنی
+🎬 دیالوگ تصادفی ببینی
+⭐ امتیازتو ببینی
+
+از منوی پایین شروع کن! 👇`;
+
+Api.sendMessage({
+  text: welcomeText,
+  parse_mode: "HTML",
+  reply_markup: {
+    inline_keyboard: [
+      [
+        { text: "🤣 جوک امروز", callback_data: "get_joke" },
+        { text: "🖼️ میم جدید", callback_data: "get_meme" }
+      ],
+      [
+        { text: "🕵️ حدس شخصیت", callback_data: "start_character" },
+        { text: "🎬 دیالوگ تصادفی", callback_data: "get_dialogue" }
+      ],
+      [
+        { text: "⭐ امتیاز من", callback_data: "my_score" }
+      ]
+    ]
+  }
+});

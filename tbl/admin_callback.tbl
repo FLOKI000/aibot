@@ -1,0 +1,153 @@
+/*
+Command: /handle_callback_query
+Description: Handle admin panel callbacks
+Note: This runs for ALL callback queries - filter by admin first
+*/
+
+if (!update.callback_query) return;
+
+const cbData = update.callback_query.data;
+if (!cbData.startsWith("admin_")) return;
+
+const adminId = Bot.get("admin_id");
+if (!adminId || user.id !== parseInt(adminId)) {
+  Api.answerCallbackQuery({ 
+    callback_query_id: update.callback_query.id, 
+    text: "⛔ دسترسی ندارید!" 
+  });
+  return;
+}
+
+const GITHUB_TOKEN = Bot.get("github_token");
+const GITHUB_REPO = "FLOKI000/aibot";
+const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/contents/content`;
+const cbMsgId = update.callback_query.message.message_id;
+const cbChatId = update.callback_query.message.chat.id;
+
+// ───────────────────────────────
+// STATS
+// ───────────────────────────────
+if (cbData === "admin_stats") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id });
+  
+  const totalUsers = await Bot.getUsers();
+  
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: `📊 <b>آمار ربات</b>\n\n👥 کاربران کل: ${totalUsers.length}\n\n⬆️ آخرین بروزرسانی: هم‌اکنون`,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [[{ text: "🔙 برگشت", callback_data: "admin_back" }]]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// ADD JOKE - Step 1: Prompt
+// ───────────────────────────────
+if (cbData === "admin_add_joke") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id });
+  User.set("admin_action", "add_joke");
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: "➕ <b>افزودن جوک جدید</b>\n\nمتن جوک رو بفرست:\n\n💡 می‌تونی از ایموجی هم استفاده کنی",
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [[{ text: "❌ لغو", callback_data: "admin_cancel" }]]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// ADD MEME - Step 1: Prompt
+// ───────────────────────────────
+if (cbData === "admin_add_meme") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id });
+  User.set("admin_action", "add_meme");
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: "➕ <b>افزودن میم جدید</b>\n\nمتن میم رو بفرست:\n\nفرمت: متن میم (یه خط)\nایموجی (اختیاری در آخر پیام)",
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [[{ text: "❌ لغو", callback_data: "admin_cancel" }]]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// ADD DIALOGUE
+// ───────────────────────────────
+if (cbData === "admin_add_dialogue") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id });
+  User.set("admin_action", "add_dialogue");
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: "➕ <b>افزودن دیالوگ جدید</b>\n\nمتن دیالوگ رو بفرست:",
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [[{ text: "❌ لغو", callback_data: "admin_cancel" }]]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// LIST JOKES
+// ───────────────────────────────
+if (cbData === "admin_list_joke") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id });
+  const resp = await HTTP.get({
+    url: `https://raw.githubusercontent.com/${GITHUB_REPO}/main/content/jokes.json`,
+    headers: { "Authorization": `token ${GITHUB_TOKEN}` }
+  });
+  const jokes = resp.data || [];
+  const preview = jokes.slice(0, 5).map((j, i) => `${i+1}. ${j.text.substring(0, 60)}...`).join("\n\n");
+  
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: `📝 <b>لیست جوک‌ها (${jokes.length} تا)</b>\n\n${preview}`,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [[{ text: "🔙 برگشت", callback_data: "admin_back" }]]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// CANCEL / BACK
+// ───────────────────────────────
+if (cbData === "admin_cancel" || cbData === "admin_back") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id });
+  User.del("admin_action");
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: "🔐 <b>پنل ادمین</b>\n\nچی می‌خوای انجام بدی؟",
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "➕ افزودن جوک", callback_data: "admin_add_joke" },
+          { text: "➕ افزودن میم", callback_data: "admin_add_meme" }
+        ],
+        [
+          { text: "➕ افزودن دیالوگ", callback_data: "admin_add_dialogue" },
+          { text: "📊 آمار", callback_data: "admin_stats" }
+        ],
+        [
+          { text: "📝 لیست محتوا", callback_data: "admin_list_joke" }
+        ]
+      ]
+    }
+  });
+  return;
+}

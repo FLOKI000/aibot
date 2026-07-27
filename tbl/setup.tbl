@@ -1,0 +1,40 @@
+/*
+Command: /setup
+Description: First-time setup - sets admin ID and GitHub token
+Only runs if no admin is set yet
+*/
+
+const existingAdmin = Bot.get("admin_id");
+
+if (existingAdmin) {
+  Bot.sendMessage("⚠️ ربات قبلاً راه‌اندازی شده!\n\nاگه ادمینی، از /admin استفاده کن.");
+  return;
+}
+
+// params format: /setup YOUR_TELEGRAM_ID
+if (!params) {
+  Bot.sendMessage(
+    "🔧 <b>راه‌اندازی ربات</b>\n\n" +
+    "برای تنظیم ادمین بنویس:\n" +
+    "<code>/setup ID_تلگرام_شما</code>\n\n" +
+    "مثال: <code>/setup 123456789</code>\n\n" +
+    "💡 ID خودتو از @userinfobot بگیر",
+    { parse_mode: "HTML" }
+  );
+  return;
+}
+
+const newAdminId = params.trim();
+
+// Set admin
+Bot.set("admin_id", newAdminId, "String");
+// Set GitHub token
+Bot.set("github_token", "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", "String");
+
+Bot.sendMessage(
+  `✅ <b>ربات راه‌اندازی شد!</b>\n\n` +
+  `👤 ادمین: <code>${newAdminId}</code>\n` +
+  `🔑 توکن GitHub: ✓ تنظیم شد\n\n` +
+  `حالا از /admin برای مدیریت استفاده کن!`,
+  { parse_mode: "HTML" }
+);

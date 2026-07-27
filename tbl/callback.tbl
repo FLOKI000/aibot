@@ -1,0 +1,304 @@
+/*
+Command: *
+Description: Master handler for callback queries and messages
+*/
+
+// Only handle callback queries
+if (!update.callback_query) return;
+
+const cbData = update.callback_query.data;
+const cbChatId = update.callback_query.message.chat.id;
+const cbMsgId = update.callback_query.message.message_id;
+const GITHUB_TOKEN = Bot.get("github_token");
+const GITHUB_REPO = "FLOKI000/aibot";
+const RAW_BASE = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/content`;
+
+// Helper: get random item from array
+function getRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// Helper: fetch JSON from GitHub
+async function fetchContent(filename) {
+  const resp = await HTTP.get({
+    url: `${RAW_BASE}/${filename}`,
+    headers: { "Authorization": `token ${GITHUB_TOKEN}` }
+  });
+  return resp.data || [];
+}
+
+// Helper: add score to user
+function addScore(points) {
+  const current = User.get("score") || 0;
+  User.set("score", current + points, "number");
+}
+
+// ───────────────────────────────
+// JOKE
+// ───────────────────────────────
+if (cbData === "get_joke") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id, text: "🤣 داری جوک می‌گیری..." });
+  const jokes = await fetchContent("jokes.json");
+  if (!jokes || jokes.length === 0) {
+    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا در دریافت جوک. دوباره تلاش کن." });
+    return;
+  }
+  const joke = getRandom(jokes);
+  addScore(1);
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: joke.text,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "😂 جوک بعدی", callback_data: "get_joke" },
+          { text: "👍 خندیدم! (+1)", callback_data: "react_funny" }
+        ],
+        [{ text: "🏠 منوی اصلی", callback_data: "main_menu" }]
+      ]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// MEME
+// ───────────────────────────────
+if (cbData === "get_meme") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id, text: "🖼️ داری میم می‌گیری..." });
+  const memes = await fetchContent("memes.json");
+  if (!memes || memes.length === 0) {
+    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا در دریافت میم." });
+    return;
+  }
+  const meme = getRandom(memes);
+  addScore(1);
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: meme.text,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "😂 میم بعدی", callback_data: "get_meme" },
+          { text: meme.emoji + " خفنه!", callback_data: "react_meme" }
+        ],
+        [{ text: "🏠 منوی اصلی", callback_data: "main_menu" }]
+      ]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// DIALOGUE
+// ───────────────────────────────
+if (cbData === "get_dialogue") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id, text: "🎬 داری دیالوگ می‌گیری..." });
+  const dialogues = await fetchContent("dialogues.json");
+  if (!dialogues || dialogues.length === 0) {
+    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا در دریافت دیالوگ." });
+    return;
+  }
+  const dialogue = getRandom(dialogues);
+  addScore(1);
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: dialogue.text,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "🎬 دیالوگ بعدی", callback_data: "get_dialogue" },
+          { text: "❤️ عالیه!", callback_data: "react_dialogue" }
+        ],
+        [{ text: "🏠 منوی اصلی", callback_data: "main_menu" }]
+      ]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// CHARACTER GAME - START
+// ───────────────────────────────
+if (cbData === "start_character") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id, text: "🕵️ بازی شروع شد!" });
+  const chars = await fetchContent("characters.json");
+  if (!chars || chars.length === 0) {
+    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا در بارگذاری بازی." });
+    return;
+  }
+  const char = getRandom(chars);
+  // Save current character for this user
+  User.set("current_char_id", char.id, "number");
+  User.set("current_char_clue", 0, "number");
+
+  const firstClue = char.clues[0];
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: `🕵️ <b>بازی حدس شخصیت!</b>\n\n🔑 <b>سرنخ ۱ از ${char.clues.length}:</b>\n${firstClue}\n\nچی فکر می‌کنی؟`,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🔍 سرنخ بعدی (-1 امتیاز)", callback_data: "next_clue" }],
+        [{ text: "💡 جواب می‌دونم!", callback_data: "show_answer_prompt" }],
+        [{ text: "🏠 منوی اصلی", callback_data: "main_menu" }]
+      ]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// CHARACTER GAME - NEXT CLUE
+// ───────────────────────────────
+if (cbData === "next_clue") {
+  const chars = await fetchContent("characters.json");
+  const charId = User.get("current_char_id");
+  let clueIdx = User.get("current_char_clue") || 0;
+  const char = chars.find(c => c.id === charId);
+
+  if (!char) {
+    Api.answerCallbackQuery({ callback_query_id: update.callback_query.id, text: "❌ خطا! دوباره شروع کن." });
+    return;
+  }
+
+  clueIdx += 1;
+  if (clueIdx >= char.clues.length) {
+    // No more clues - show answer
+    User.set("current_char_clue", clueIdx, "number");
+    Api.answerCallbackQuery({ callback_query_id: update.callback_query.id, text: "همه سرنخ‌ها تموم شد!" });
+    Api.editMessageText({
+      chat_id: cbChatId,
+      message_id: cbMsgId,
+      text: `${char.emoji} <b>جواب:</b> <b>${char.answer}</b>\n\nهمه سرنخ‌ها رو دیدی! 🎭`,
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🔄 شخصیت جدید", callback_data: "start_character" }],
+          [{ text: "🏠 منوی اصلی", callback_data: "main_menu" }]
+        ]
+      }
+    });
+    return;
+  }
+
+  User.set("current_char_clue", clueIdx, "number");
+  addScore(-1); // Penalty for needing a clue
+
+  const clue = char.clues[clueIdx];
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id, text: "-1 امتیاز" });
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: `🕵️ <b>سرنخ ${clueIdx + 1} از ${char.clues.length}:</b>\n${clue}`,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        clueIdx < char.clues.length - 1 ? [{ text: "🔍 سرنخ بعدی (-1 امتیاز)", callback_data: "next_clue" }] : [],
+        [{ text: "💡 جواب می‌دونم!", callback_data: "show_answer_prompt" }],
+        [{ text: "🏠 منوی اصلی", callback_data: "main_menu" }]
+      ].filter(r => r.length > 0)
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// CHARACTER - SHOW ANSWER
+// ───────────────────────────────
+if (cbData === "show_answer_prompt") {
+  const chars = await fetchContent("characters.json");
+  const charId = User.get("current_char_id");
+  const clueIdx = User.get("current_char_clue") || 0;
+  const char = chars.find(c => c.id === charId);
+
+  if (!char) {
+    Api.answerCallbackQuery({ callback_query_id: update.callback_query.id, text: "❌ خطا!" });
+    return;
+  }
+
+  const scoreEarned = Math.max(5 - clueIdx, 1);
+  addScore(scoreEarned);
+
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id, text: `+${scoreEarned} امتیاز!` });
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: `${char.emoji} <b>جواب: ${char.answer}</b>\n\n🎉 تو ${clueIdx + 1} سرنخ جواب دادی!\n⭐ <b>+${scoreEarned} امتیاز</b> گرفتی!`,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🔄 شخصیت جدید", callback_data: "start_character" }],
+        [{ text: "🏠 منوی اصلی", callback_data: "main_menu" }]
+      ]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// MY SCORE
+// ───────────────────────────────
+if (cbData === "my_score") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id });
+  const score = User.get("score") || 0;
+  let rank = "🥉 تازه‌کار";
+  if (score >= 50) rank = "🥇 افسانه";
+  else if (score >= 20) rank = "🥈 حرفه‌ای";
+  else if (score >= 10) rank = "⭐ کاربر فعال";
+
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: `⭐ <b>امتیاز تو:</b> ${score} نقطه\n🏅 <b>رتبه:</b> ${rank}\n\n💡 با حدس شخصیت امتیاز بیشتر بگیر!`,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🏠 منوی اصلی", callback_data: "main_menu" }]
+      ]
+    }
+  });
+  return;
+}
+
+// ───────────────────────────────
+// REACTIONS (just add score)
+// ───────────────────────────────
+if (cbData === "react_funny" || cbData === "react_meme" || cbData === "react_dialogue") {
+  addScore(2);
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id, text: "❤️ +2 امتیاز گرفتی!" });
+  return;
+}
+
+// ───────────────────────────────
+// MAIN MENU
+// ───────────────────────────────
+if (cbData === "main_menu") {
+  Api.answerCallbackQuery({ callback_query_id: update.callback_query.id });
+  Api.editMessageText({
+    chat_id: cbChatId,
+    message_id: cbMsgId,
+    text: `🏠 <b>منوی اصلی</b>\n\nیه گزینه انتخاب کن ${user.first_name}! 👇`,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "🤣 جوک امروز", callback_data: "get_joke" },
+          { text: "🖼️ میم جدید", callback_data: "get_meme" }
+        ],
+        [
+          { text: "🕵️ حدس شخصیت", callback_data: "start_character" },
+          { text: "🎬 دیالوگ تصادفی", callback_data: "get_dialogue" }
+        ],
+        [
+          { text: "⭐ امتیاز من", callback_data: "my_score" }
+        ]
+      ]
+    }
+  });
+  return;
+}
