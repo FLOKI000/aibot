@@ -5,8 +5,27 @@ const cbData = cb.data;
 const cbChatId = cb.message.chat.id;
 const cbMsgId = cb.message.message_id;
 const cbQueryId = cb.id;
-const CLAUDE_KEY = Bot.get("claude_key");
 const RAW_BASE = "https://raw.githubusercontent.com/FLOKI000/aibot/main/content";
+
+async function askAI(systemPrompt, userMsg) {
+  const resp = await HTTP.post({
+    url: "https://api.deepseek.com/chat/completions",
+    headers: {
+      "Authorization": "Bearer " + Bot.get("claude_key"),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "deepseek-chat",
+      max_tokens: 300,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMsg }
+      ]
+    })
+  });
+  if (!resp.ok || !resp.data) return null;
+  return resp.data.choices[0].message.content;
+}
 
 function getRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -18,31 +37,12 @@ async function fetchContent(filename) {
   return resp.data;
 }
 
-async function askClaude(systemPrompt, userMsg) {
-  const resp = await HTTP.post({
-    url: "https://api.anthropic.com/v1/messages",
-    headers: {
-      "x-api-key": CLAUDE_KEY,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMsg }]
-    })
-  });
-  if (!resp.ok || !resp.data) return null;
-  return resp.data.content[0].text;
-}
-
 function addScore(points) {
   const s = User.get("score") || 0;
   User.set("score", s + points, "number");
 }
 
-// ── MAIN MENU ──
+// MAIN MENU
 if (cbData === "main_menu") {
   Api.answerCallbackQuery({ callback_query_id: cbQueryId });
   Api.editMessageText({
@@ -57,18 +57,18 @@ if (cbData === "main_menu") {
   return;
 }
 
-// ── JOKE (AI-generated) ──
+// JOKE
 if (cbData === "get_joke") {
   Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🤣 داره میاد..." });
-  Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "⏳ AI داره یه جوک جدید می‌سازه..." });
-  const joke = await askClaude(
-    "یه دستیار سرگرمی فارسی هستی. فقط یه جوک خنده‌دار و کوتاه فارسی بنویس. بدون توضیح. فقط جوک. از ایموجی استفاده کن.",
+  Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "⏳ AI داره جوک می‌سازه..." });
+  const joke = await askAI(
+    "یه دستیار سرگرمی فارسی هستی. فقط یه جوک خنده‌دار و کوتاه فارسی بنویس. بدون توضیح اضافه. فقط جوک. از ایموجی استفاده کن.",
     "یه جوک تازه بده که کسی نشنیده باشه"
   );
   addScore(1);
   Api.editMessageText({
     chat_id: cbChatId, message_id: cbMsgId,
-    text: joke || "❌ خطا در تولید جوک",
+    text: joke || "❌ خطا در تولید جوک. دوباره امتحان کن.",
     reply_markup: { inline_keyboard: [
       [{ text: "😂 جوک بعدی", callback_data: "get_joke" }, { text: "👍 خندیدم! +2", callback_data: "react_funny" }],
       [{ text: "🏠 منو", callback_data: "main_menu" }]
@@ -77,18 +77,18 @@ if (cbData === "get_joke") {
   return;
 }
 
-// ── MEME (AI-generated) ──
+// MEME
 if (cbData === "get_meme") {
   Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🖼️ داره میاد..." });
   Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "⏳ AI داره میم می‌سازه..." });
-  const meme = await askClaude(
-    "یه دستیار سرگرمی فارسی هستی. میم متنی بساز. فرمت: یه موقعیت خنده‌دار روزمره به سبک 'وقتی که...' با ایموجی. فقط متن میم، بدون توضیح.",
+  const meme = await askAI(
+    "یه دستیار سرگرمی فارسی هستی. میم متنی فارسی بساز. فرمت: یه موقعیت خنده‌دار روزمره به سبک 'وقتی که...' با ایموجی. فقط متن میم، بدون توضیح.",
     "یه میم خنده‌دار فارسی بساز"
   );
   addScore(1);
   Api.editMessageText({
     chat_id: cbChatId, message_id: cbMsgId,
-    text: meme || "❌ خطا",
+    text: meme || "❌ خطا. دوباره امتحان کن.",
     reply_markup: { inline_keyboard: [
       [{ text: "😂 میم بعدی", callback_data: "get_meme" }, { text: "🔥 خفنه! +2", callback_data: "react_meme" }],
       [{ text: "🏠 منو", callback_data: "main_menu" }]
@@ -97,18 +97,18 @@ if (cbData === "get_meme") {
   return;
 }
 
-// ── DIALOGUE (AI-generated) ──
+// DIALOGUE
 if (cbData === "get_dialogue") {
   Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🎬 داره میاد..." });
   Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "⏳ AI داره دیالوگ می‌سازه..." });
-  const dialogue = await askClaude(
+  const dialogue = await askAI(
     "دیالوگ‌های ماندگار سینمای ایران و دنیا رو بلدی. یه دیالوگ احساسی یا فلسفی کوتاه بنویس. اسم فیلم یا سریال رو هم بنویس. از ایموجی استفاده کن.",
     "یه دیالوگ ماندگار بده"
   );
   addScore(1);
   Api.editMessageText({
     chat_id: cbChatId, message_id: cbMsgId,
-    text: dialogue || "❌ خطا",
+    text: dialogue || "❌ خطا. دوباره امتحان کن.",
     reply_markup: { inline_keyboard: [
       [{ text: "🎬 دیالوگ بعدی", callback_data: "get_dialogue" }, { text: "❤️ عالیه! +2", callback_data: "react_dialogue" }],
       [{ text: "🏠 منو", callback_data: "main_menu" }]
@@ -117,23 +117,25 @@ if (cbData === "get_dialogue") {
   return;
 }
 
-// ── CHARACTER GAME ──
+// CHARACTER GAME - START
 if (cbData === "start_character") {
   Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🕵️ بازی شروع شد!" });
   Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "⏳ AI داره شخصیت انتخاب می‌کنه..." });
-  const charData = await askClaude(
-    `یه بازی حدس شخصیت طراحی کن. یه شخصیت مشهور (فیلم، سریال، انیمیشن، تاریخ) انتخاب کن.
-خروجی فقط JSON باشه بدون هیچ متن دیگه‌ای:
-{"name":"اسم شخصیت","clues":["سرنخ ۱","سرنخ ۲","سرنخ ۳","سرنخ ۴"]}
-سرنخ‌ها از آسون به سخت باشن. سرنخ اول خیلی کلی، آخری نزدیک‌تر به جواب.`,
-    "یه شخصیت تازه انتخاب کن که قبلاً نگفتی"
+  const charData = await askAI(
+    `یه بازی حدس شخصیت طراحی کن. یه شخصیت مشهور از فیلم، سریال، انیمیشن یا تاریخ انتخاب کن.
+خروجی فقط JSON باشه بدون هیچ متن دیگه‌ای، بدون backtick:
+{"name":"اسم شخصیت","clues":["سرنخ اول خیلی کلی","سرنخ دوم","سرنخ سوم","سرنخ چهارم نزدیک به جواب"]}
+سرنخ‌ها فارسی باشن و از آسون به سخت.`,
+    "یه شخصیت تازه و جالب انتخاب کن"
   );
   let char;
   try {
-    const clean = charData.replace(/```json|```/g, "").trim();
+    const clean = (charData || "").replace(/```json|```/g, "").trim();
     char = JSON.parse(clean);
   } catch(e) {
-    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا. دوباره امتحان کن." });
+    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا در ساخت بازی. دوباره امتحان کن.",
+      reply_markup: { inline_keyboard: [[{ text: "🔄 دوباره", callback_data: "start_character" }]] }
+    });
     return;
   }
   User.set("char_name", char.name);
@@ -152,6 +154,7 @@ if (cbData === "start_character") {
   return;
 }
 
+// NEXT CLUE
 if (cbData === "next_clue") {
   const clues = JSON.parse(User.get("char_clues") || "[]");
   let idx = (User.get("char_clue_idx") || 0) + 1;
@@ -168,12 +171,13 @@ if (cbData === "next_clue") {
   btns.push([{ text: "🏠 منو", callback_data: "main_menu" }]);
   Api.editMessageText({
     chat_id: cbChatId, message_id: cbMsgId,
-    text: "🔑 سرنخ " + (idx+1) + " از " + clues.length + ":\n" + clues[idx] + "\n\n✍️ حالا اسمش رو بنویس:",
+    text: "🔑 سرنخ " + (idx + 1) + " از " + clues.length + ":\n" + clues[idx] + "\n\n✍️ حالا اسمش رو بنویس:",
     reply_markup: { inline_keyboard: btns }
   });
   return;
 }
 
+// GIVE UP
 if (cbData === "give_up") {
   const charName = User.get("char_name") || "نامشخص";
   User.set("char_state", "done");
@@ -190,7 +194,7 @@ if (cbData === "give_up") {
   return;
 }
 
-// ── START AI CHAT ──
+// START AI CHAT
 if (cbData === "start_chat") {
   Api.answerCallbackQuery({ callback_query_id: cbQueryId });
   User.set("chat_mode", "ai");
@@ -201,7 +205,7 @@ if (cbData === "start_chat") {
   return;
 }
 
-// ── SCORE ──
+// MY SCORE
 if (cbData === "my_score") {
   Api.answerCallbackQuery({ callback_query_id: cbQueryId });
   const score = User.get("score") || 0;
@@ -217,7 +221,7 @@ if (cbData === "my_score") {
   return;
 }
 
-// ── REACTIONS ──
+// REACTIONS
 if (cbData === "react_funny" || cbData === "react_meme" || cbData === "react_dialogue") {
   addScore(2);
   Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "❤️ +2 امتیاز!" });
