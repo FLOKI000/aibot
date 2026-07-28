@@ -5,7 +5,7 @@ const cbData = cb.data;
 const cbChatId = cb.message.chat.id;
 const cbMsgId = cb.message.message_id;
 const cbQueryId = cb.id;
-
+const CLAUDE_KEY = Bot.get("claude_key");
 const RAW_BASE = "https://raw.githubusercontent.com/FLOKI000/aibot/main/content";
 
 function getRandom(arr) {
@@ -18,117 +18,190 @@ async function fetchContent(filename) {
   return resp.data;
 }
 
-function addScore(points) {
-  const current = User.get("score") || 0;
-  User.set("score", current + points, "number");
+async function askClaude(systemPrompt, userMsg) {
+  const resp = await HTTP.post({
+    url: "https://api.anthropic.com/v1/messages",
+    headers: {
+      "x-api-key": CLAUDE_KEY,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 300,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMsg }]
+    })
+  });
+  if (!resp.ok || !resp.data) return null;
+  return resp.data.content[0].text;
 }
 
-// MAIN MENU
+function addScore(points) {
+  const s = User.get("score") || 0;
+  User.set("score", s + points, "number");
+}
+
+// ── MAIN MENU ──
 if (cbData === "main_menu") {
   Api.answerCallbackQuery({ callback_query_id: cbQueryId });
   Api.editMessageText({
-    chat_id: cbChatId,
-    message_id: cbMsgId,
-    text: "🏠 منوی اصلی\n\nیه گزینه انتخاب کن 👇",
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "🤣 جوک امروز", callback_data: "get_joke" },
-          { text: "🖼️ میم جدید", callback_data: "get_meme" }
-        ],
-        [
-          { text: "🕵️ حدس شخصیت", callback_data: "start_character" },
-          { text: "🎬 دیالوگ تصادفی", callback_data: "get_dialogue" }
-        ],
-        [{ text: "⭐ امتیاز من", callback_data: "my_score" }]
-      ]
-    }
+    chat_id: cbChatId, message_id: cbMsgId,
+    text: "🏠 منوی اصلی\n\nیه گزینه انتخاب کن " + user.first_name + " 👇",
+    reply_markup: { inline_keyboard: [
+      [{ text: "🤣 جوک امروز", callback_data: "get_joke" }, { text: "🖼️ میم جدید", callback_data: "get_meme" }],
+      [{ text: "🕵️ حدس شخصیت", callback_data: "start_character" }, { text: "🎬 دیالوگ تصادفی", callback_data: "get_dialogue" }],
+      [{ text: "⭐ امتیاز من", callback_data: "my_score" }, { text: "🤖 چت با AI", callback_data: "start_chat" }]
+    ]}
   });
   return;
 }
 
-// JOKE
+// ── JOKE (AI-generated) ──
 if (cbData === "get_joke") {
-  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🤣 جوک میاد..." });
-  const jokes = await fetchContent("jokes.json");
-  if (!jokes) {
-    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا در دریافت جوک" });
-    return;
-  }
-  const joke = getRandom(jokes);
+  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🤣 داره میاد..." });
+  Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "⏳ AI داره یه جوک جدید می‌سازه..." });
+  const joke = await askClaude(
+    "یه دستیار سرگرمی فارسی هستی. فقط یه جوک خنده‌دار و کوتاه فارسی بنویس. بدون توضیح. فقط جوک. از ایموجی استفاده کن.",
+    "یه جوک تازه بده که کسی نشنیده باشه"
+  );
   addScore(1);
   Api.editMessageText({
-    chat_id: cbChatId,
-    message_id: cbMsgId,
-    text: joke.text,
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "😂 جوک بعدی", callback_data: "get_joke" },
-          { text: "👍 خندیدم!", callback_data: "react_funny" }
-        ],
-        [{ text: "🏠 منو", callback_data: "main_menu" }]
-      ]
-    }
+    chat_id: cbChatId, message_id: cbMsgId,
+    text: joke || "❌ خطا در تولید جوک",
+    reply_markup: { inline_keyboard: [
+      [{ text: "😂 جوک بعدی", callback_data: "get_joke" }, { text: "👍 خندیدم! +2", callback_data: "react_funny" }],
+      [{ text: "🏠 منو", callback_data: "main_menu" }]
+    ]}
   });
   return;
 }
 
-// MEME
+// ── MEME (AI-generated) ──
 if (cbData === "get_meme") {
-  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🖼️ میم میاد..." });
-  const memes = await fetchContent("memes.json");
-  if (!memes) {
-    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا در دریافت میم" });
-    return;
-  }
-  const meme = getRandom(memes);
+  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🖼️ داره میاد..." });
+  Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "⏳ AI داره میم می‌سازه..." });
+  const meme = await askClaude(
+    "یه دستیار سرگرمی فارسی هستی. میم متنی بساز. فرمت: یه موقعیت خنده‌دار روزمره به سبک 'وقتی که...' با ایموجی. فقط متن میم، بدون توضیح.",
+    "یه میم خنده‌دار فارسی بساز"
+  );
   addScore(1);
   Api.editMessageText({
-    chat_id: cbChatId,
-    message_id: cbMsgId,
-    text: meme.text,
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "😂 میم بعدی", callback_data: "get_meme" },
-          { text: "🔥 خفنه!", callback_data: "react_meme" }
-        ],
-        [{ text: "🏠 منو", callback_data: "main_menu" }]
-      ]
-    }
+    chat_id: cbChatId, message_id: cbMsgId,
+    text: meme || "❌ خطا",
+    reply_markup: { inline_keyboard: [
+      [{ text: "😂 میم بعدی", callback_data: "get_meme" }, { text: "🔥 خفنه! +2", callback_data: "react_meme" }],
+      [{ text: "🏠 منو", callback_data: "main_menu" }]
+    ]}
   });
   return;
 }
 
-// DIALOGUE
+// ── DIALOGUE (AI-generated) ──
 if (cbData === "get_dialogue") {
-  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🎬 دیالوگ میاد..." });
-  const dialogues = await fetchContent("dialogues.json");
-  if (!dialogues) {
-    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا در دریافت دیالوگ" });
-    return;
-  }
-  const dialogue = getRandom(dialogues);
+  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🎬 داره میاد..." });
+  Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "⏳ AI داره دیالوگ می‌سازه..." });
+  const dialogue = await askClaude(
+    "دیالوگ‌های ماندگار سینمای ایران و دنیا رو بلدی. یه دیالوگ احساسی یا فلسفی کوتاه بنویس. اسم فیلم یا سریال رو هم بنویس. از ایموجی استفاده کن.",
+    "یه دیالوگ ماندگار بده"
+  );
   addScore(1);
   Api.editMessageText({
-    chat_id: cbChatId,
-    message_id: cbMsgId,
-    text: dialogue.text,
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "🎬 دیالوگ بعدی", callback_data: "get_dialogue" },
-          { text: "❤️ عالیه!", callback_data: "react_dialogue" }
-        ],
-        [{ text: "🏠 منو", callback_data: "main_menu" }]
-      ]
-    }
+    chat_id: cbChatId, message_id: cbMsgId,
+    text: dialogue || "❌ خطا",
+    reply_markup: { inline_keyboard: [
+      [{ text: "🎬 دیالوگ بعدی", callback_data: "get_dialogue" }, { text: "❤️ عالیه! +2", callback_data: "react_dialogue" }],
+      [{ text: "🏠 منو", callback_data: "main_menu" }]
+    ]}
   });
   return;
 }
 
-// MY SCORE
+// ── CHARACTER GAME ──
+if (cbData === "start_character") {
+  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🕵️ بازی شروع شد!" });
+  Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "⏳ AI داره شخصیت انتخاب می‌کنه..." });
+  const charData = await askClaude(
+    `یه بازی حدس شخصیت طراحی کن. یه شخصیت مشهور (فیلم، سریال، انیمیشن، تاریخ) انتخاب کن.
+خروجی فقط JSON باشه بدون هیچ متن دیگه‌ای:
+{"name":"اسم شخصیت","clues":["سرنخ ۱","سرنخ ۲","سرنخ ۳","سرنخ ۴"]}
+سرنخ‌ها از آسون به سخت باشن. سرنخ اول خیلی کلی، آخری نزدیک‌تر به جواب.`,
+    "یه شخصیت تازه انتخاب کن که قبلاً نگفتی"
+  );
+  let char;
+  try {
+    const clean = charData.replace(/```json|```/g, "").trim();
+    char = JSON.parse(clean);
+  } catch(e) {
+    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا. دوباره امتحان کن." });
+    return;
+  }
+  User.set("char_name", char.name);
+  User.set("char_clues", JSON.stringify(char.clues));
+  User.set("char_clue_idx", 0, "number");
+  User.set("char_state", "playing");
+  Api.editMessageText({
+    chat_id: cbChatId, message_id: cbMsgId,
+    text: "🕵️ بازی حدس شخصیت!\n\n🔑 سرنخ ۱ از ۴:\n" + char.clues[0] + "\n\n✍️ اسم شخصیت رو تایپ کن:",
+    reply_markup: { inline_keyboard: [
+      [{ text: "🔍 سرنخ بعدی (-1 امتیاز)", callback_data: "next_clue" }],
+      [{ text: "🏳️ تسلیم شدم", callback_data: "give_up" }],
+      [{ text: "🏠 منو", callback_data: "main_menu" }]
+    ]}
+  });
+  return;
+}
+
+if (cbData === "next_clue") {
+  const clues = JSON.parse(User.get("char_clues") || "[]");
+  let idx = (User.get("char_clue_idx") || 0) + 1;
+  if (idx >= clues.length) {
+    Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "دیگه سرنخی نمونده!" });
+    return;
+  }
+  User.set("char_clue_idx", idx, "number");
+  addScore(-1);
+  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "-1 امتیاز" });
+  const btns = [];
+  if (idx < clues.length - 1) btns.push([{ text: "🔍 سرنخ بعدی (-1 امتیاز)", callback_data: "next_clue" }]);
+  btns.push([{ text: "🏳️ تسلیم شدم", callback_data: "give_up" }]);
+  btns.push([{ text: "🏠 منو", callback_data: "main_menu" }]);
+  Api.editMessageText({
+    chat_id: cbChatId, message_id: cbMsgId,
+    text: "🔑 سرنخ " + (idx+1) + " از " + clues.length + ":\n" + clues[idx] + "\n\n✍️ حالا اسمش رو بنویس:",
+    reply_markup: { inline_keyboard: btns }
+  });
+  return;
+}
+
+if (cbData === "give_up") {
+  const charName = User.get("char_name") || "نامشخص";
+  User.set("char_state", "done");
+  addScore(-2);
+  Api.answerCallbackQuery({ callback_query_id: cbQueryId });
+  Api.editMessageText({
+    chat_id: cbChatId, message_id: cbMsgId,
+    text: "😅 جواب: " + charName + "\n\nدفعه بعد موفق میشی! (-2 امتیاز)",
+    reply_markup: { inline_keyboard: [
+      [{ text: "🔄 دوباره بازی", callback_data: "start_character" }],
+      [{ text: "🏠 منو", callback_data: "main_menu" }]
+    ]}
+  });
+  return;
+}
+
+// ── START AI CHAT ──
+if (cbData === "start_chat") {
+  Api.answerCallbackQuery({ callback_query_id: cbQueryId });
+  User.set("chat_mode", "ai");
+  Api.editMessageText({
+    chat_id: cbChatId, message_id: cbMsgId,
+    text: "🤖 حالا می‌تونی هر چیزی بپرسی!\n\nبرای خروج بنویس: /stop",
+  });
+  return;
+}
+
+// ── SCORE ──
 if (cbData === "my_score") {
   Api.answerCallbackQuery({ callback_query_id: cbQueryId });
   const score = User.get("score") || 0;
@@ -137,111 +210,14 @@ if (cbData === "my_score") {
   else if (score >= 20) rank = "🥈 حرفه‌ای";
   else if (score >= 10) rank = "⭐ کاربر فعال";
   Api.editMessageText({
-    chat_id: cbChatId,
-    message_id: cbMsgId,
-    text: "⭐ امتیاز تو: " + score + " نقطه\n🏅 رتبه: " + rank,
-    reply_markup: {
-      inline_keyboard: [[{ text: "🏠 منو", callback_data: "main_menu" }]]
-    }
+    chat_id: cbChatId, message_id: cbMsgId,
+    text: "⭐ امتیاز تو: " + score + "\n🏅 رتبه: " + rank + "\n\n💡 با حدس شخصیت امتیاز بیشتر بگیر!",
+    reply_markup: { inline_keyboard: [[{ text: "🏠 منو", callback_data: "main_menu" }]] }
   });
   return;
 }
 
-// CHARACTER GAME
-if (cbData === "start_character") {
-  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "🕵️ بازی شروع شد!" });
-  const chars = await fetchContent("characters.json");
-  if (!chars) {
-    Api.editMessageText({ chat_id: cbChatId, message_id: cbMsgId, text: "❌ خطا در بارگذاری بازی" });
-    return;
-  }
-  const char = getRandom(chars);
-  User.set("char_id", char.id, "number");
-  User.set("char_clue", 0, "number");
-  Api.editMessageText({
-    chat_id: cbChatId,
-    message_id: cbMsgId,
-    text: "🕵️ بازی حدس شخصیت!\n\n🔑 سرنخ ۱ از " + char.clues.length + ":\n" + char.clues[0],
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: "🔍 سرنخ بعدی (-1 امتیاز)", callback_data: "next_clue" }],
-        [{ text: "✅ جواب می‌دونم!", callback_data: "show_answer" }],
-        [{ text: "🏠 منو", callback_data: "main_menu" }]
-      ]
-    }
-  });
-  return;
-}
-
-if (cbData === "next_clue") {
-  const chars = await fetchContent("characters.json");
-  const charId = User.get("char_id");
-  let clueIdx = (User.get("char_clue") || 0) + 1;
-  const char = chars ? chars.find(c => c.id === charId) : null;
-  if (!char) {
-    Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "❌ دوباره شروع کن" });
-    return;
-  }
-  if (clueIdx >= char.clues.length) {
-    Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "همه سرنخ‌ها تموم شد!" });
-    Api.editMessageText({
-      chat_id: cbChatId,
-      message_id: cbMsgId,
-      text: char.emoji + " جواب: " + char.answer + "\n\nهمه سرنخ‌ها رو دیدی! 🎭",
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "🔄 شخصیت جدید", callback_data: "start_character" }],
-          [{ text: "🏠 منو", callback_data: "main_menu" }]
-        ]
-      }
-    });
-    return;
-  }
-  User.set("char_clue", clueIdx, "number");
-  addScore(-1);
-  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "-1 امتیاز" });
-  Api.editMessageText({
-    chat_id: cbChatId,
-    message_id: cbMsgId,
-    text: "🔑 سرنخ " + (clueIdx + 1) + " از " + char.clues.length + ":\n" + char.clues[clueIdx],
-    reply_markup: {
-      inline_keyboard: [
-        clueIdx < char.clues.length - 1 ? [{ text: "🔍 سرنخ بعدی (-1 امتیاز)", callback_data: "next_clue" }] : [],
-        [{ text: "✅ جواب می‌دونم!", callback_data: "show_answer" }],
-        [{ text: "🏠 منو", callback_data: "main_menu" }]
-      ].filter(r => r.length > 0)
-    }
-  });
-  return;
-}
-
-if (cbData === "show_answer") {
-  const chars = await fetchContent("characters.json");
-  const charId = User.get("char_id");
-  const clueIdx = User.get("char_clue") || 0;
-  const char = chars ? chars.find(c => c.id === charId) : null;
-  if (!char) {
-    Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "❌ خطا!" });
-    return;
-  }
-  const scoreEarned = Math.max(5 - clueIdx, 1);
-  addScore(scoreEarned);
-  Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "+" + scoreEarned + " امتیاز!" });
-  Api.editMessageText({
-    chat_id: cbChatId,
-    message_id: cbMsgId,
-    text: char.emoji + " جواب: " + char.answer + "\n\n🎉 تو " + (clueIdx + 1) + " سرنخ حدس زدی!\n⭐ +" + scoreEarned + " امتیاز گرفتی!",
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: "🔄 شخصیت جدید", callback_data: "start_character" }],
-        [{ text: "🏠 منو", callback_data: "main_menu" }]
-      ]
-    }
-  });
-  return;
-}
-
-// REACTIONS
+// ── REACTIONS ──
 if (cbData === "react_funny" || cbData === "react_meme" || cbData === "react_dialogue") {
   addScore(2);
   Api.answerCallbackQuery({ callback_query_id: cbQueryId, text: "❤️ +2 امتیاز!" });
